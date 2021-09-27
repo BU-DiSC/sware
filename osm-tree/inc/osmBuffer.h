@@ -140,7 +140,6 @@ class OsmBuffer
     _Key buf_min, buf_max;
     _Key sorted_min, sorted_max, unsorted_min, unsorted_max;
 
-    // std::unordered_map<int, std::pair<_Key, _Key>> zones;
     std::pair<_Key, _Key> *zones;
 
     int DISCREPANCY_THRESHOLD;
@@ -166,7 +165,6 @@ public:
         osmBuffer = new std::pair<_Key, _Value>[osmCap];
 
         num_per_zone = _num_per_zone;
-        // num_zones = osmCap / num_per_zone + 1;
         num_zones = std::ceil(osmCap / (double)num_per_zone);
 
         current_zone = 0;
@@ -287,9 +285,6 @@ public:
 public:
     int searchZone(_Key key, int l, int r)
     {
-        // int n = last_sorted_zone;
-        // int l = 0;
-        // int r = n;
 
         while (l <= r)
         {
@@ -354,10 +349,7 @@ public:
                 end = osmBufSize - 1;
             }
             int num = end - start + 1;
-            // if(num < num_per_zone)
-            // {
-            //     std::cout<<num<<std::endl;
-            // }
+
             current_zone_element_count = num;
             zones[i].first = osmBuffer[start].first;
             zones[i].second = osmBuffer[end].first;
@@ -385,7 +377,6 @@ public:
         // ensure all elements have been covered by the map
         assert(end == osmBufSize - 1);
 
-        // assert(zones.size() <= num_zones);
         assert(current_zone <= num_zones);
 
         // buffer's min and max will be the first and last element in the buffer
@@ -402,14 +393,13 @@ public:
 public:
     bool adaptiveSortOsmBuf()
     {
-        // int k = osmBufSize / 2;
+
         int k = out_of_order_elements;
-        // int l = osmBufSize / 10;
+
         int l = (num_per_zone * max_discrepancy);
         int n = osmBufSize;
 
         std::pair<_Key, _Value> *OUT = new std::pair<_Key, _Value>[n];
-        // assert(adaptive_sort(osmBuffer, n, k, l, OUT) != 0);
 
         bool try_adaptive_sort = adaptive_sort(osmBuffer, n, k, l, OUT);
 
@@ -484,24 +474,6 @@ public:
         if (out_of_order_elements != 0)
         {
             counters.total_sort += 1;
-            // if (max_discrepancy <= DISCREPANCY_THRESHOLD && out_of_order_elements <= NOISE_THRESHOLD)
-            // {
-            //     bool flag = adaptiveSortOsmBuf();
-            //     counters.num_adaptive += 1;
-            //     if (!flag)
-            //     {
-            //         stlSortOsmBuf();
-            //         counters.num_adaptive_fail += 1;
-            //         counters.num_quick += 1;
-            //     }
-            // }
-            // else
-            // {
-            //     stlSortOsmBuf();
-            //     counters.num_quick += 1;
-            // }
-
-            // we can justify this
             int k_limit_1 = 10 / 100.0 * osmCap;
             int k_limit_2 = 5 / 100 * osmCap;
 
@@ -528,18 +500,10 @@ public:
                 counters.num_quick += 1;
             }
 
-            // bool flag = adaptiveSortOsmBuf();
-            // counters.num_adaptive += 1;
-            // if (!flag)
-            // {
-            //     stlSortOsmBuf();
-            //     counters.num_adaptive_fail += 1;
-            //     counters.num_quick += 1;
-            // }
         }
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-        // counters.sort_buffer_time += duration.count();
+
     }
 
     void sortOsmBufNew()
@@ -599,7 +563,6 @@ public:
             else
             {
                 auto start_gen = std::chrono::high_resolution_clock::now();
-                // we can justify this
                 int k_limit_1 = 10 / 100.0 * osmCap;
                 int k_limit_2 = 5 / 100 * osmCap;
 
@@ -629,15 +592,6 @@ public:
                 auto duration_gen = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_gen - start_gen);
                 counters.gen_sort_time += duration_gen.count();
             }
-
-            // bool flag = adaptiveSortOsmBuf();
-            // counters.num_adaptive += 1;
-            // if (!flag)
-            // {
-            //     stlSortOsmBuf();
-            //     counters.num_adaptive_fail += 1;
-            //     counters.num_quick += 1;
-            // }
         }
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
@@ -744,47 +698,13 @@ public:
                 {
                     last_sorted_zone = z - 1;
                     lsz_moved_left = true;
-                    // std::cout << "LSZ = " << last_sorted_zone << std::endl;
-                    // int discrepancy = current_zone - z;
-                    // if (discrepancy > max_discrepancy)
-                    // {
-                    //     max_discrepancy = discrepancy;
-                    // }
                 }
                 else
                 {
                     last_sorted_zone = -1; // basically z will return -1 so set to -1
-                    // max_discrepancy = current_zone + 1; // since the element we had is smaller than smallest in buffer, max_discrepency is equal to cur. length of buffer
                 }
             }
-            // else
-            // {
-            //     // element is out of order, but it is greater than LSZ.max
-            //     // we cannot do binary search here. Need seq scan
-
-            //     // start from left; stop when first match found
-
-            //     // note, this only computes discrepancy.
-            //     int discrepancy = -1;
-            //     for (int i = last_sorted_zone + 1; i <= current_zone; i++)
-            //     {
-            //         if (i == 0 && element.first >= zones[i].first && element.first <= zones[i].second)
-            //         {
-            //             discrepancy = current_zone;
-            //             break;
-            //         }
-            //         else if (element.first >= zones[i - 1].second && element.first <= zones[i].second)
-            //         {
-            //             discrepancy = current_zone - i;
-            //             break;
-            //         }
-            //     }
-            //     if (discrepancy > max_discrepancy && discrepancy != -1)
-            //     {
-            //         max_discrepancy = discrepancy;
-            //     }
-            // }
-
+           
             // handle the max_discrepancy here by replacing the else block above
             int discrepancy = -1;
             if (last_sorted_zone >= previous_boundary)
@@ -814,27 +734,6 @@ public:
             if (discrepancy > max_discrepancy && discrepancy != -1)
                 max_discrepancy = discrepancy;
 
-            // else if (element.first >= zones[current_zone].first && element.first <= zones[current_zone].second)
-            // {
-            //     // if this element is greater than current_zone.first, it can be placed in this zone itself
-            //     // in this case, last_sorted_zone will remain same as before
-            //     last_sorted_zone = last_sorted_zone;
-            // }
-            // else
-            // {
-            //     // last_sorted_zone = searchZone(element.first) - 1;
-            //     int z = searchZone(element.first);
-            //     if (z >= 0)
-            //     {
-            //         last_sorted_zone = z - 1;
-            //         int discrepancy = current_zone - z;
-
-            //         if (discrepancy > max_discrepancy)
-            //         {
-            //             max_discrepancy = discrepancy;
-            //         }
-            //     }
-            // }
             out_of_order = true;
             out_of_order_elements++;
         }
@@ -858,8 +757,6 @@ public:
         // if map is empty or zone does not exist, simply add min and max for zone as element
         if (current_zone == 0 && current_zone_element_count == 0)
         {
-            // std::pair<_Key, _Key> min_max = std::make_pair(element.first, element.first);
-            // zones.insert({current_zone, min_max});
             zones[current_zone].first = element.first;
             zones[current_zone].second = element.first;
             current_zone_element_count++;
@@ -888,8 +785,6 @@ public:
             {
                 current_zone++;
                 current_zone_element_count = 0;
-                // std::pair<_Key, _Key> min_max = std::make_pair(element.first, element.first);
-                // zones.insert({current_zone, min_max});
                 zones[current_zone].first = element.first;
                 zones[current_zone].second = element.first;
                 current_zone_element_count++;
@@ -897,7 +792,6 @@ public:
                 if (!out_of_order)
                 {
                     last_sorted_zone = current_zone - 1;
-                    // std::cout << "LSZ MOVING RIGHT" << std::endl;
                 }
             }
         }
@@ -1200,10 +1094,6 @@ public:
         last_element = osmBuffer[osmBufSize - 1].first;
         out_of_order_elements = 0;
         max_discrepancy = 0;
-
-        // std::cout << "flushed;"
-        //           << "Flag = " << out_of_order << "\tK = " << out_of_order_elements << "\tL= " << max_discrepancy << std::endl;
-
         // make previous boundary = last_sorted_zone
         // from subsequent inserts, last_sorted_zone will change but previous_boundary remains the same
         previous_boundary = current_zone - 1;
@@ -1315,11 +1205,6 @@ public:
                     // each subsorted section.
                     assert(last_boundary <= current_zone);
 
-                    // if (last_boundary == previous_boundary && previous_boundary != 0)
-                    // {
-                    //     last_boundary = previous_boundary;
-                    // }
-
                     // sequentially scan zonemaps to see if a zone can contain the key
 
 #ifdef OSMPROFILE
@@ -1327,22 +1212,12 @@ public:
 #endif
                     int qualifying_zones[num_zones];
                     int num_qualified = 0;
-#ifdef OSMPROFILE
-                    auto start_zone_scan = std::chrono::high_resolution_clock::now();
-#endif
-                    // change start boundary from previous_boundary to last_boundary
-                    // get_qualifying_zones(qualifying_zones, num_qualified, key, last_boundary + 1);
-#ifdef OSMPROFILE
-                    auto stop_zone_scan = std::chrono::high_resolution_clock::now();
-                    auto duration_zone_scan = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_zone_scan - start_zone_scan);
-                    zone_scan_time += duration_zone_scan.count();
-#endif
+
 #ifdef OSMP
                     auto start_sample = std::chrono::high_resolution_clock::now();
 #endif
                     bool result = false;
                     // search within qualifying zones
-                    // for (int i = 0; i < num_qualified; i++)
                     for (int i = current_zone; i >= last_boundary + 1; i--)
                     {
                         counters.num_zones_queried += 1;
@@ -1354,7 +1229,6 @@ public:
 #ifdef OSMPROFILE
                             auto start_sublevelbf = std::chrono::high_resolution_clock::now();
 #endif
-                            // bool zoneBFResult = subfilters[qualifying_zones[i]]->query(str_key);
                             bool zoneBFResult = subfilters[i]->query(str_key);
 
 #ifdef OSMPROFILE
@@ -1494,7 +1368,6 @@ public:
                 auto start_bin = std::chrono::high_resolution_clock::now();
 #endif
                 // can do binary search
-                // bool flag = searchKey(key);
                 flag = false;
                 int f = interpolationSearchKey(key);
                 if (f < 0)
@@ -1515,23 +1388,6 @@ public:
                 }
             }
         }
-
-        // if (!flag)
-        // {
-        //     int boundary_index = (previous_boundary)*num_per_zone;
-        //     // // sequentially scan the osm buffer
-        //     for (int i = 0; i < osmBufSize; i++)
-        //     {
-        //         if (osmBuffer[i].first == key)
-        //         {
-
-        //             std::cout << "Found key - " << key << "," << i << ", previous boundary at: " << boundary_index << ", last boundary: " << (subsorted_boundaries[subsorted_size - 1]) * num_per_zone << ", OSM Size = " << osmBufSize << std::endl;
-        //             // bool within_sorted_section_range = previous_boundary > 0 && (key >= sorted_min && key <= sorted_max);
-        //             // int f = interpolationSearchKey(key);
-        //             break;
-        //         }
-        //     }
-        // }
         return false;
     }
 
@@ -1542,7 +1398,6 @@ public:
         while (low <= high)
         {
 
-            // int pos = low + ((double)(high - low) / (osmBuffer[high].first - osmBuffer[low].first) * (key - osmBuffer[low].first));
             int pos = (low + high) / 2;
 
             if (osmBuffer[pos].first < key)
@@ -1565,7 +1420,6 @@ public:
         while (low <= high)
         {
 
-            // int pos = low + ((double)(high - low) / (osmBuffer[high].first - osmBuffer[low].first) * (key - osmBuffer[low].first));
             int pos = (low + high) / 2;
 
             if (osmBuffer[pos].first <= key)

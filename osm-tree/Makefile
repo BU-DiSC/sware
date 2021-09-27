@@ -20,7 +20,7 @@ bepsilontree:
 
 osmtree: 
 	$(CREATE_DIR)
-	$(CC) $(CFLAGS) inc/osmtree.h test_osmtree.cpp -o test_osmtree -DOSMTIMER -DBPLUS -DSPLIT80
+	$(CC) $(CFLAGS) inc/osmtree.h test_osmtree.cpp -o test_osmtree -DOSMTIMER $(BASE_INDEX_FLAG) -DSPLIT80
 
 clean:
 	rm -rf $(BASE_INDEX_TARGET) $(BASE_INDEX_TARGET)_bepsilon test_osmtree

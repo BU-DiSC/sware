@@ -427,16 +427,13 @@ public:
 #endif
 
         std::vector<std::pair<_Key, _Value>> elements = osmBuffer->rangeQuery(low, high);
-        // std::cout << "Buffer Elements = " << elements.size() << std::endl;
         tot_buffer_range += elements.size();
 
         // if not found in buffer, call query function from tree
-        // bool flag = this->query(low, high);
         bool within_tree_range = (!(high < this->getMinimumKey()) && !(low > this->getMaximumKey()));
         if (within_tree_range)
         {
             std::vector<std::pair<_Key, _Value>> tree_elements = this->rangeQuery(low, high);
-            // std::cout << "Tree Elements = " << tree_elements.size() << std::endl;
             tot_tree_range += tree_elements.size();
 
             elements.insert(elements.end(), tree_elements.begin(), tree_elements.end());
