@@ -1,6 +1,6 @@
 # osmtree
 
-Source code for SIGMOD 2022 paper submission: "OSM-Tree: A Sortedness-Aware Index"
+Source code for VLDB 2022 paper submission: "OSM-Tree: A Sortedness-Aware Index"
 
 ## About 
 The repository contains the source code for B+tree and OSM-tree implementations.
