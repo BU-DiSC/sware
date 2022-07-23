@@ -8,7 +8,7 @@ In the current version of the code, both implementations are generic, but the ap
 
 Both data structures require a buffer pool allocation while running the code, which can be extended to the required amount if needed to run completely in memory. The buffer pool allocation is given in terms of number of blocks where each block is 4KB. For example, if you use an allocation of 1M blocks, then you are allocating 1M\*4KB = 4GB of memory for the tree data structure.
 
-The OSM-tree also requires the number of entries its in-memory buffer can hold while executing the program, along with the fill factor to maintain while bulkloading. Each entry is a key-value pair. 
+The SA B+-tree also requires the number of entries its in-memory buffer can hold while executing the program, along with the fill factor to maintain while bulkloading. Each entry is a key-value pair. 
 ## How to run
 
 ### Generating ingestion workload
