@@ -1,4 +1,4 @@
-# osmtree
+# SWARE: Sortedness Aware Indexing
 
 Source code for ICDE 2023 paper submission: "Indexing for Near Sorted Data"
 
