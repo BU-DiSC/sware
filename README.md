@@ -12,7 +12,7 @@ The SA B+-tree also requires the number of entries its in-memory buffer can hold
 ## How to run
 
 ### Generating ingestion workload
-Use the workload generator from this repo: https://anonymous.4open.science/r/sortedness-workload/ to generate ingestion keys. As mentioned above, the application files use the same value for both key and value of each entry (K,V pair). Note the path to the generated workload. 
+Use the sortedness data generator from this repo: https://github.com/BU-DiSC/bods to generate ingestion keys (can specify payload size=0 to generate only keys). As mentioned above, the application files use the same value for both key and value of each entry (K,V pair). Note the path to the generated workload. 
 
 ### B+ Tree
 1. compile using the command "make bplustree"
