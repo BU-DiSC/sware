@@ -1,9 +1,9 @@
 # osmtree
 
-Source code for VLDB 2022 paper submission: "OSM-Tree: A Sortedness-Aware Index"
+Source code for ICDE 2023 paper submission: "Indexing for Near Sorted Data"
 
 ## About 
-The repository contains the source code for B+tree and OSM-tree implementations.
+The repository contains the source code for B+tree and SWARE implementations.
 In the current version of the code, both implementations are generic, but the application files that test these index data structures only support integer data type. Also, the application files use the same value for both key and value of each entry. Future extensions of the code will support larger data types. 
 
 Both data structures require a buffer pool allocation while running the code, which can be extended to the required amount if needed to run completely in memory. The buffer pool allocation is given in terms of number of blocks where each block is 4KB. For example, if you use an allocation of 1M blocks, then you are allocating 1M\*4KB = 4GB of memory for the tree data structure.
@@ -26,14 +26,14 @@ For example, you would use:
 ```
 Here, we are ingesting a workload of 1M entries/keys with K=L=100,000. We are using a buffer pool cache for 1M blocks and are executing 200,000 point queries. The output latencies for both ingestion and point queries are written to "sample.txt".
 
-### OSM Tree
-1. compile using the command "make osmtree"
+### SA B+ tree
+1. compile using the command "make satree"
 2. Run the executable file using the following format: 
 ```c
-./test_osmtree <ingestion_workload_path> <output_file_name> <buffer_pool_allocation> <K> <L> <#. entries> <osmBuffer allocation> <fill factor %>  <#. queries>
+./test_satree <ingestion_workload_path> <output_file_name> <buffer_pool_allocation> <K> <L> <#. entries> <swareBuffer allocation> <fill factor %>  <#. queries>
 ```
 For example, you would use:
 ```c
-/test_osmtree createdata_1000000-elems_100000-K_100000-L_1seed1632764083.dat osmsample.txt 1000000 100000 100000 1000000 10000 95 200000
+/test_satree createdata_1000000-elems_100000-K_100000-L_1seed1632764083.dat swaresample.txt 1000000 100000 100000 1000000 10000 95 200000
 ```
-Here, we are ingesting a workload of 1M entries/keys with K=L=100,000. We are using a buffer pool cache for 1M blocks and are executing 200,000 point queries. The output latencies for both ingestion and point queries are written to "osmsample.txt". The in-memory buffer will hold 10,000 entries (1% of 1M) and we are maintaining a fill factor of 95%. 
+Here, we are ingesting a workload of 1M entries/keys with K=L=100,000. We are using a buffer pool cache for 1M blocks and are executing 200,000 point queries. The output latencies for both ingestion and point queries are written to "swaresample.txt". The in-memory buffer will hold 10,000 entries (1% of 1M) and we are maintaining a fill factor of 95%. 
