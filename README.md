@@ -34,6 +34,6 @@ Here, we are ingesting a workload of 1M entries/keys with K=L=100,000. We are us
 ```
 For example, you would use:
 ```c
-/test_satree createdata_1000000-elems_100000-K_100000-L_1seed1632764083.dat swaresample.txt 1000000 100000 100000 1000000 10000 95 200000
+/test_satree createdata_1000000-elems_10-K_10-L_1seed1632764083.dat swaresample.txt 1000000 10 10 1000000 10000 95 200000
 ```
-Here, we are ingesting a workload of 1M entries/keys with K=L=100,000. We are using a buffer pool cache for 1M blocks and are executing 200,000 point queries. The output latencies for both ingestion and point queries are written to "swaresample.txt". The in-memory buffer will hold 10,000 entries (1% of 1M) and we are maintaining a fill factor of 95%. 
+Here, we are ingesting a workload of 1M entries/keys with K=L=100,000 (10% of total entries). We are using a buffer pool cache for 1M blocks and are executing 200,000 point queries. The output latencies for both ingestion and point queries are written to "swaresample.txt". The in-memory buffer will hold 10,000 entries (1% of 1M) and we are maintaining a fill factor of 95%. 
