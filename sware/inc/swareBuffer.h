@@ -145,13 +145,18 @@ class OsmBuffer
     int DISCREPANCY_THRESHOLD;
     int NOISE_THRESHOLD;
 
+#ifdef GLOBALBF
     BloomFilter *filter;
-
+#endif
+#ifdef SUBBFS
     BloomFilter **subfilters;
-
+#endif
     int subsorted_boundaries[subsorted_cap];
     int subsorted_size;
     bool atleast_one_subsorted;
+
+    bool range_sorted;
+    int range_sorted_boundary;
 
     double fill_threshold;
 
@@ -178,18 +183,24 @@ public:
         DISCREPANCY_THRESHOLD = num_zones / 10;
         NOISE_THRESHOLD = osmCap / 10;
 
+#ifdef GLOBALBF
         filter = new BloomFilter(osmCap, 10);
+#endif
 
+#ifdef SUBBFS
         // init one BF per zone
         subfilters = new BloomFilter *[num_zones];
         for (int i = 0; i < num_zones; i++)
         {
             subfilters[i] = new BloomFilter(num_per_zone + 1, 10);
         }
+#endif
         flush_cycle = 1;
 
         subsorted_size = 0;
         atleast_one_subsorted = false;
+
+        range_sorted = false;
 
         fill_threshold = 0.1;
         std::cout << "Fill Threshold:" << fill_threshold << std::endl;
@@ -199,13 +210,17 @@ public:
     {
         delete[] osmBuffer;
         delete[] zones;
-        delete filter;
 
+#ifdef GLOBALBF
+        delete filter;
+#endif
+#ifdef SUBBFS
         for (int i = 0; i < num_zones; i++)
         {
             delete subfilters[i];
         }
         delete[] subfilters;
+#endif
     }
 
     // getters
@@ -355,12 +370,13 @@ public:
             zones[i].second = osmBuffer[end].first;
             current_zone = i;
         }
-
+#ifdef SUBBFS
         // reset all subfilters
         for (int i = 0; i < num_zones; i++)
         {
             subfilters[i]->reset();
         }
+#endif
 
         // check if current zone element count is not at capacity
         if (current_zone_element_count > 0 && current_zone_element_count < num_per_zone)
@@ -369,14 +385,19 @@ public:
             for (int i = start; i <= end; i++)
             {
                 std::string str_key = std::to_string(osmBuffer[i].first);
+#ifdef GLOBALBF
                 filter->program(str_key);
+#endif
+#ifdef SUBBFS
                 subfilters[current_zone]->program(str_key);
+#endif
             }
         }
 
         // ensure all elements have been covered by the map
         assert(end == osmBufSize - 1);
 
+        // assert(zones.size() <= num_zones);
         assert(current_zone <= num_zones);
 
         // buffer's min and max will be the first and last element in the buffer
@@ -393,13 +414,12 @@ public:
 public:
     bool adaptiveSortOsmBuf()
     {
-
         int k = out_of_order_elements;
-
         int l = (num_per_zone * max_discrepancy);
         int n = osmBufSize;
 
         std::pair<_Key, _Value> *OUT = new std::pair<_Key, _Value>[n];
+
 
         bool try_adaptive_sort = adaptive_sort(osmBuffer, n, k, l, OUT);
 
@@ -474,6 +494,7 @@ public:
         if (out_of_order_elements != 0)
         {
             counters.total_sort += 1;
+
             int k_limit_1 = 10 / 100.0 * osmCap;
             int k_limit_2 = 5 / 100 * osmCap;
 
@@ -499,11 +520,10 @@ public:
                 stlSortOsmBuf();
                 counters.num_quick += 1;
             }
-
         }
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-
+        // counters.sort_buffer_time += duration.count();
     }
 
     void sortOsmBufNew()
@@ -666,6 +686,9 @@ public:
         assert(osmBufSize < osmCap);
         osmBuffer[osmBufSize++] = element;
 
+        // set range_sorted to false
+        range_sorted = false;
+
         if (osmBufSize == 0)
         {
             last_element = element.first;
@@ -698,13 +721,16 @@ public:
                 {
                     last_sorted_zone = z - 1;
                     lsz_moved_left = true;
+
                 }
                 else
                 {
                     last_sorted_zone = -1; // basically z will return -1 so set to -1
+                    // max_discrepancy = current_zone + 1; // since the element we had is smaller than smallest in buffer, max_discrepency is equal to cur. length of buffer
                 }
             }
-           
+       
+
             // handle the max_discrepancy here by replacing the else block above
             int discrepancy = -1;
             if (last_sorted_zone >= previous_boundary)
@@ -738,18 +764,19 @@ public:
             out_of_order_elements++;
         }
 
+        std::string str_key = std::to_string(element.first);
+#ifdef GLOBALBF
 // add element to bloom filter
 #ifdef OSMPROFILE
         auto start_globalbf = std::chrono::high_resolution_clock::now();
 #endif
-        std::string str_key = std::to_string(element.first);
         filter->program(str_key);
 #ifdef OSMPROFILE
         auto stop_globalbf = std::chrono::high_resolution_clock::now();
         auto duration_globalbf = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_globalbf - start_globalbf);
         global_bf_insert_time += duration_globalbf.count();
 #endif
-
+#endif
         // assert(zones.size() <= num_zones);
         assert(current_zone <= num_zones);
         last_element = element.first;
@@ -757,6 +784,7 @@ public:
         // if map is empty or zone does not exist, simply add min and max for zone as element
         if (current_zone == 0 && current_zone_element_count == 0)
         {
+
             zones[current_zone].first = element.first;
             zones[current_zone].second = element.first;
             current_zone_element_count++;
@@ -785,6 +813,7 @@ public:
             {
                 current_zone++;
                 current_zone_element_count = 0;
+
                 zones[current_zone].first = element.first;
                 zones[current_zone].second = element.first;
                 current_zone_element_count++;
@@ -792,10 +821,12 @@ public:
                 if (!out_of_order)
                 {
                     last_sorted_zone = current_zone - 1;
+                    // std::cout << "LSZ MOVING RIGHT" << std::endl;
                 }
             }
         }
 
+#ifdef SUBBFS
 #ifdef OSMPROFILE
         auto start_sublevel = std::chrono::high_resolution_clock::now();
 #endif
@@ -804,6 +835,7 @@ public:
         auto stop_sublevel = std::chrono::high_resolution_clock::now();
         auto duration_sublevel = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_sublevel - start_sublevel);
         sublevel_bf_insert_time += duration_sublevel.count();
+#endif
 #endif
         assert(current_zone <= num_zones);
 
@@ -1060,11 +1092,13 @@ public:
             zones[i].second = osmBuffer[end].first;
         }
 
+#ifdef SUBBFS
         // reset all subfilters
         for (int i = start_zone; i < end_zone; i++)
         {
             subfilters[i]->reset();
         }
+#endif
     }
 
     // more helpers
@@ -1081,7 +1115,9 @@ public:
 
     void resetGlobalBF()
     {
+#ifdef GLOBALBF
         filter->reset();
+#endif
     }
 
     void performPostFlushProcedure()
@@ -1094,6 +1130,7 @@ public:
         last_element = osmBuffer[osmBufSize - 1].first;
         out_of_order_elements = 0;
         max_discrepancy = 0;
+
         // make previous boundary = last_sorted_zone
         // from subsequent inserts, last_sorted_zone will change but previous_boundary remains the same
         previous_boundary = current_zone - 1;
@@ -1109,13 +1146,26 @@ public:
     {
         bool flag = false;
         counters.osm_fence_queries += 1;
-        if (key >= buf_min && key <= buf_max)
+        std::string str_key = std::to_string(key);
+        // if we are within buffer range...
+
+        // init this flag to always true so we can use even without zonemaps
+        bool within_buf_range = true;
+#ifdef ZONES
+        within_buf_range = key >= buf_min && key <= buf_max;
+        counters.osm_fence_positive += 1;
+#endif
+        // if (key >= buf_min && key <= buf_max)
+        if (within_buf_range)
         {
-            counters.osm_fence_positive += 1;
             // if (last_sorted_zone != current_zone - 1)
-            bool within_unsorted_section_range = !sorted_buffer && (key >= unsorted_min && key <= unsorted_max);
+            bool within_unsorted_section_range = true;
+
+#ifdef ZONES
+            within_unsorted_section_range = !sorted_buffer && (key >= unsorted_min && key <= unsorted_max);
             // increment #. of unsorted section zonemap queries
             counters.unsorted_zonemap_queries += 1;
+#endif
 
             if (within_unsorted_section_range)
             {
@@ -1124,12 +1174,18 @@ public:
 
                 // this means there is some unsortedness.
                 counters.num_seq_scan += 1;
-                // check bloom filter to see if element can exist in unsorted part of buffer
-                std::string str_key = std::to_string(key);
+
+                // now we will query the global bf
+                // we want to always continue probe if we don't have a global BF
+                bool result = true;
+
+                // check bloom filter to see if element can exist in unsorted section of the  buffer
+#ifdef GLOBALBF
+
 #ifdef OSMPROFILE
                 auto start_bf = std::chrono::high_resolution_clock::now();
 #endif
-                bool result = filter->query(str_key);
+                result = filter->query(str_key);
 #ifdef OSMPROFILE
                 auto stop_bf = std::chrono::high_resolution_clock::now();
                 auto duration_bf = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_bf - start_bf);
@@ -1137,12 +1193,17 @@ public:
 #endif
                 // increment number of times global bf was global_bf_queried
                 counters.global_bf_queried += 1;
+#endif
+                // if global BF says yes, then element is potentially in unsorted section of the buffer
 
                 if (result)
                 {
 
+                    // if gbf returned a positive result
+#ifdef GLOBALBF
                     // increment #. of times global bf returned positive
                     counters.global_bf_positive += 1;
+#endif
 
                     int filled_pages = 0;
                     int last_boundary;
@@ -1212,12 +1273,22 @@ public:
 #endif
                     int qualifying_zones[num_zones];
                     int num_qualified = 0;
-
+#ifdef OSMPROFILE
+                    auto start_zone_scan = std::chrono::high_resolution_clock::now();
+#endif
+                    // change start boundary from previous_boundary to last_boundary
+                    // get_qualifying_zones(qualifying_zones, num_qualified, key, last_boundary + 1);
+#ifdef OSMPROFILE
+                    auto stop_zone_scan = std::chrono::high_resolution_clock::now();
+                    auto duration_zone_scan = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_zone_scan - start_zone_scan);
+                    zone_scan_time += duration_zone_scan.count();
+#endif
 #ifdef OSMP
                     auto start_sample = std::chrono::high_resolution_clock::now();
 #endif
                     bool result = false;
                     // search within qualifying zones
+                    // for (int i = 0; i < num_qualified; i++)
                     for (int i = current_zone; i >= last_boundary + 1; i--)
                     {
                         counters.num_zones_queried += 1;
@@ -1226,10 +1297,13 @@ public:
                         {
                             counters.num_zones_positive += 1;
                             // first query this zone's BF
+                            bool zoneBFResult = true;
+#ifdef SUBBFS
 #ifdef OSMPROFILE
                             auto start_sublevelbf = std::chrono::high_resolution_clock::now();
 #endif
-                            bool zoneBFResult = subfilters[i]->query(str_key);
+                            // bool zoneBFResult = subfilters[qualifying_zones[i]]->query(str_key);
+                            zoneBFResult = subfilters[i]->query(str_key);
 
 #ifdef OSMPROFILE
                             auto stop_sublevelbf = std::chrono::high_resolution_clock::now();
@@ -1239,11 +1313,13 @@ public:
 
                             // increment #. of sublevel BF queries
                             counters.sublevel_bf_queried += 1;
+#endif
                             if (zoneBFResult)
                             {
-                                // increment #. of sublevel BF positives
+// increment #. of sublevel BF positives
+#ifdef SUBBFS
                                 counters.sublevel_bf_positive += 1;
-
+#endif
                                 flag = false;
                                 // flag = searchWithinZone(key, qualifying_zones[i]);
                                 flag = searchWithinZone(key, i);
@@ -1355,10 +1431,18 @@ public:
                     bin_search_time += duration_unsorted_inter.count();
 #endif
                 }
-            }
+            } // close the unsorted section scan if gbf approved. If gbf returned false, we directly come here to the sorted section
+              // next check for sorted section
 
-            bool within_sorted_section_range = previous_boundary > 0 && (key >= sorted_min && key <= sorted_max);
+            // to have the ability to turn off the zonemaps, let us initialize this result to true always.
+            // this way, if we have zonemaps turned off, we will always go inside the following if condition
+            // if zonemaps are used, then this flag will be set based on our condition
+            bool within_sorted_section_range = true;
+
+#ifdef ZONES
+            within_sorted_section_range = previous_boundary > 0 && (key >= sorted_min && key <= sorted_max);
             counters.sorted_zonemap_queries += 1;
+#endif
 
             if (within_sorted_section_range)
             {
@@ -1368,6 +1452,7 @@ public:
                 auto start_bin = std::chrono::high_resolution_clock::now();
 #endif
                 // can do binary search
+                // bool flag = searchKey(key);
                 flag = false;
                 int f = interpolationSearchKey(key);
                 if (f < 0)
@@ -1391,13 +1476,14 @@ public:
         return false;
     }
 
-    int findFirstGreaterThan(_Key key,int low, int high)
+    int findFirstGreaterThan(_Key key, int low, int high)
     {
         int ans = -1;
 
         while (low <= high)
         {
 
+            // int pos = low + ((double)(high - low) / (osmBuffer[high].first - osmBuffer[low].first) * (key - osmBuffer[low].first));
             int pos = (low + high) / 2;
 
             if (osmBuffer[pos].first < key)
@@ -1420,6 +1506,7 @@ public:
         while (low <= high)
         {
 
+            // int pos = low + ((double)(high - low) / (osmBuffer[high].first - osmBuffer[low].first) * (key - osmBuffer[low].first));
             int pos = (low + high) / 2;
 
             if (osmBuffer[pos].first <= key)
@@ -1435,20 +1522,132 @@ public:
         return ans;
     }
 
+    void merge(std::vector<std::pair<_Key, _Value>> ar1, std::vector<std::pair<_Key, _Value>> ar2, int m, int n, std::vector<std::pair<_Key, _Value>> ar3)
+    {
+        int i = 0, j = 0, k = ar3.size();
+
+        while (i < m && j < n)
+        {
+            if (ar1[i].first < ar2[j].first)
+            {
+                ar3.push_back(ar1.at(i));
+                i++;
+            }
+            else
+            {
+                ar3.push_back(ar2.at(j));
+                j++;
+            }
+        }
+
+        while (i < m)
+        {
+            ar3.push_back(ar1.at(i));
+            i++;
+        }
+
+        while (j < n)
+        {
+            ar3.push_back(ar2.at(j));
+            j++;
+        }
+    }
+
+    std::vector<std::pair<_Key, _Value>> merge(std::vector<std::pair<_Key, _Value>> array, int const left, int const mid, int const right)
+    {
+        auto const subArrayOne = mid - left + 1;
+        auto const subArrayTwo = right - mid;
+
+        // Create temp arrays
+        auto *leftArray = new std::pair<_Key, _Value>[subArrayOne],
+             *rightArray = new std::pair<_Key, _Value>[subArrayTwo];
+
+        // Copy data to temp arrays leftArray[] and rightArray[]
+        for (auto i = 0; i < subArrayOne; i++)
+            leftArray[i] = array.at(left + i);
+        for (auto j = 0; j < subArrayTwo; j++)
+            rightArray[j] = array.at(mid + 1 + j);
+
+        auto indexOfSubArrayOne = 0,   // Initial index of first sub-array
+            indexOfSubArrayTwo = 0;    // Initial index of second sub-array
+        int indexOfMergedArray = left; // Initial index of merged array
+
+        // Merge the temp arrays back into array[left..right]
+        while (indexOfSubArrayOne < subArrayOne && indexOfSubArrayTwo < subArrayTwo)
+        {
+            if (leftArray[indexOfSubArrayOne] <= rightArray[indexOfSubArrayTwo])
+            {
+                array.at(indexOfMergedArray) = leftArray[indexOfSubArrayOne];
+                indexOfSubArrayOne++;
+            }
+            else
+            {
+                array.at(indexOfMergedArray) = rightArray[indexOfSubArrayTwo];
+                indexOfSubArrayTwo++;
+            }
+            indexOfMergedArray++;
+        }
+        // Copy the remaining elements of
+        // left[], if there are any
+        while (indexOfSubArrayOne < subArrayOne)
+        {
+            if (indexOfMergedArray < array.size())
+                array.at(indexOfMergedArray) = leftArray[indexOfSubArrayOne];
+            else
+                array.push_back(leftArray[indexOfSubArrayOne]);
+            indexOfSubArrayOne++;
+            indexOfMergedArray++;
+        }
+        // Copy the remaining elements of
+        // right[], if there are any
+        while (indexOfSubArrayTwo < subArrayTwo)
+        {
+            if (indexOfMergedArray < array.size())
+                array[indexOfMergedArray] = rightArray[indexOfSubArrayTwo];
+            else
+                array.push_back(rightArray[indexOfSubArrayTwo]);
+            indexOfSubArrayTwo++;
+            indexOfMergedArray++;
+        }
+        return array;
+    }
+
     std::vector<std::pair<_Key, _Value>> rangeQuery(_Key low, _Key high)
     {
         std::vector<std::pair<_Key, _Value>> result;
         // first check the buffer's ranges
         if (!(high < buf_min) && !(low > buf_max))
         {
-            // get elements from sorted section until previous boundary (included)
-
-            // check if within range of sorted section
-
-            // if (low >= sorted_min && low <= sorted_max)
-            if(!(high < sorted_min) && !(low > sorted_max))
+            // first check if we have range_sorted set to false
+            int last_boundary = range_sorted_boundary;
+            if (!range_sorted)
             {
-                int end_of_block = (num_per_zone * (previous_boundary + 1)) - 1;
+
+                if (atleast_one_subsorted)
+                {
+                    // if we have query-sorted components, we sort from the last sorted component to current
+                    last_boundary = subsorted_boundaries[subsorted_size - 1];
+                }
+                else
+                {
+                    // if we don't have query-sorted components, we sort from previous_boundary
+                    last_boundary = previous_boundary;
+                }
+
+                // first sort the unsorted block starting from last_boundary+1
+                int start_index = (num_per_zone * (last_boundary + 1));
+                // sort from start_index to osmBufSize
+                std::stable_sort(osmBuffer + start_index, osmBuffer + osmBufSize);
+                range_sorted = true;
+                range_sorted_boundary = last_boundary;
+            }
+
+            // since our last part is also going to be sorted, we can do smart search
+            int start_index = (num_per_zone * (range_sorted_boundary + 1));
+            int end_block = 0;
+            if (!(high < osmBuffer[start_index].first) && !(low > osmBuffer[osmBufSize - 1].first))
+            {
+                int end_of_block = osmBufSize - 1;
                 // interpolation search for first key greater than equal to low
                 int start = findFirstGreaterThan(low, 0, end_of_block);
 
@@ -1463,7 +1662,7 @@ public:
                 result.insert(result.end(), &osmBuffer[start], &osmBuffer[end + 1]);
             }
 
-            int last_boundary = previous_boundary;
+            last_boundary = previous_boundary;
             // check if we have subsorted blocks
             if (atleast_one_subsorted)
             {
@@ -1493,7 +1692,7 @@ public:
 
                     // now that we have defined the boundaries in terms of zone ids, we need to calculate exact indexes
 
-                    int end_i = num_per_zone * (right_boundary)+num_per_zone - 1;
+                    int end_i = num_per_zone * (right_boundary) + num_per_zone - 1;
 
                     // lets do some basic sanity checks
                     assert(end_i < osmBufSize);
@@ -1502,7 +1701,7 @@ public:
                     // we have start and end boundaries, these will form the zonemap for this block
                     // check if our range falls within this block
                     // if (low >= start_i && low <= end_i)
-                    if(!(high < osmBuffer[start_i].first) && !(low > osmBuffer[end_i].first))
+                    if (!(high < osmBuffer[start_i].first) && !(low > osmBuffer[end_i].first))
                     {
                         // interpolation search for first key greater than equal to low
                         int start = findFirstGreaterThan(low, start_i, end_i);
@@ -1515,7 +1714,13 @@ public:
                         }
 
                         // include all elements from start to end
+                        std::vector<std::pair<_Key, _Value>> res;
+                        int old_size = result.size();
                         result.insert(result.end(), &osmBuffer[start], &osmBuffer[end + 1]);
+
+                        // now until old_size is one sorted run and after that to new_size is next sorted run
+                        // we can merge it
+                        result = merge(result, 0, old_size - 1, result.size() - 1);
                     }
 
                     // for next iteration, start_b becomes start_b - 1
@@ -1528,31 +1733,34 @@ public:
                 last_boundary = subsorted_boundaries[subsorted_size - 1];
             }
 
-            
-            // scan the last part of the buffer sequentially
-            for (int i = last_boundary + 1; i <= current_zone; i++)
+            // get elements from sorted section until previous boundary (included)
+
+            // check if within range of sorted section
+
+            // if (low >= sorted_min && low <= sorted_max)
+            if (!(high < sorted_min) && !(low > sorted_max))
             {
-                // check particular zonemap
-                // if (low >= zones[i].first && high <= zones[i].second)
-                if(!(high < zones[i].first) && !(low > zones[i].second))
+                int end_of_block = (num_per_zone * (previous_boundary + 1)) - 1;
+                // interpolation search for first key greater than equal to low
+                int start = findFirstGreaterThan(low, 0, end_of_block);
+
+                // interpolation search for first key strictly greater than high
+                int end = end_of_block;
+                if (high < osmBuffer[end_of_block].first)
                 {
-                    // do linear scan on zone to check
-                    int start_index = (num_per_zone * (i));
-                    int end_index = (start_index + num_per_zone + 1);
-                    if (end_index > osmBufSize)
-                    {
-                        end_index = osmBufSize;
-                    }
-                    bool f = false;
-                    for (int j = start_index; j < end_index; j++)
-                    {
-                        if (osmBuffer[j].first >= low && osmBuffer[j].first <= high)
-                        {
-                            result.push_back(osmBuffer[j]);
-                        }
-                    }
+                    end = findFirstStrictlyGreaterThan(high, 0, end_of_block) - 1; // first key > high - 1 will be included
                 }
+
+                // include all elements from start to end
+                // std::vector<std::pair<_Key, _Value>> res;
+                int old_size = result.size();
+                result.insert(result.end(), &osmBuffer[start], &osmBuffer[end + 1]);
+
+                // now until old_size is one sorted run and after that to new_size is next sorted run
+                // we can merge it
+                result = merge(result, 0, old_size - 1, result.size() - 1);
             }
+
         }
 
         return result;

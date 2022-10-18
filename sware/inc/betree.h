@@ -1223,10 +1223,7 @@ public:
         BeNode<key_type, value_type, knobs, compare> start_node(manager, id);
         std::vector<std::vector<std::pair<key_type, value_type>>> elements;
 
-// IO for reading start node
-#ifdef IO
-        traits.io_rangequery++;
-#endif
+
 
         while (true)
         {
@@ -1249,10 +1246,7 @@ public:
                 int slot = start_node.slotOfKey(low);
                 start_node.setToId(pivot_pointers[slot]);
 
-// reading next node from memory so increase I/O counter
-#ifdef IO
-                traits.io_rangequery++;
-#endif
+
                 continue;
             }
 
@@ -1268,14 +1262,13 @@ public:
                     current_node.open();
                     // insert elements at end of row by fetching elements. flag will determine if we are
                     // reaching the upper limit
+                    // row.insert(row.end(), current_node->getElementsInRangeInLeaf(low, high, flag));
 
                     if (current_node.getDataSize() > 0)
                     {
                         std::vector<std::pair<key_type, value_type>> fetched = current_node.getElementsInRangeInLeaf(low, high, flag);
-                        for (int i = 0; i < fetched.size(); i++)
-                        {
-                            row.push_back(fetched[i]);
-                        }
+                       
+                        row.insert(row.end(), fetched.begin(), fetched.end());
                     }
 
                     current_node.setToId(*current_node.getNextNode());
@@ -1284,13 +1277,14 @@ public:
                         break;
 
                         // getting next node so increase I/O counter
-#ifdef IO
-                    traits.io_rangequery++;
-#endif
                 }
 
                 if (row.size() > 0)
                     elements.push_back(row);
+
+                // we probably don't need this as we are no longer using pointers
+                // current_node = NULL;
+                // delete current_node;
                 break;
             }
 
@@ -1306,23 +1300,21 @@ public:
                     current_node.open();
                     // insert elements at end of row by fetching elements. flag will determine if we are
                     // reaching the upper limit
+                    // row.insert(row.end(), current_node->getElementsInRangeInBuffer(low, high, flag));
+
                     if (current_node.getBufferSize() > 0)
                     {
                         std::vector<std::pair<key_type, value_type>> fetched = current_node.getElementsInRangeInBuffer(low, high, flag);
-                        for (int i = 0; i < fetched.size(); i++)
-                        {
-                            row.push_back(fetched[i]);
-                        }
+                        
+                        row.insert(row.end(), fetched.begin(), fetched.end());
                     }
+                    // std::cout<<"Goint to next node = "<<current_node.getNextNode().getId()<<std::endl;
                     current_node.setToId(*current_node.getNextNode());
 
                     if (current_node.getId() == 0)
                         break;
 
-// reading next node from memory so increase I/O counter
-#ifdef IO
-                    traits.io_rangequery++;
-#endif
+
                 }
 
                 if (row.size() > 0)
@@ -1332,10 +1324,8 @@ public:
                 start_node.open();
                 start_node.setToId(start_node.pivot_pointers[start_node.slotOfKey(low)]);
 
-// reading next node from memory so increase I/O counter
-#ifdef IO
-                traits.io_rangequery++;
-#endif
+
+            
             }
         }
 
@@ -1352,16 +1342,12 @@ public:
         }
         for (int i = 0; i < elements.size(); i++)
         {
-
-            for (int j = 0; j < elements[i].size(); j++)
-            {
-                output.push_back(elements[i][j]);
-            }
+            
+            output.insert(output.end(), elements[i].begin(), elements[i].end());
         }
-
+        
         return output;
     }
-
 public:
     uint getId()
     {
